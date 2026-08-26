@@ -42,7 +42,7 @@ def _dados_padrao() -> dict:
         },
         "advogados": [
             {"nome": "JULIO FRANCO POLI", "oab": "OAB/TO 4.589B",
-             "endereco": "Qd. 106 Norte, Al. 02, Conj. L, Lote 04/05, Ed. Palmas Business Center, Sala 905, Palmas – TO"}
+             "endereco": "Ed. JK Business, Av. Juscelino Kubitscheck, Lote 41-A, Sala 901, Palmas – TO, CEP: 77.015-012"}
         ],
         "clientes": []
     }
@@ -349,8 +349,8 @@ def doc_to_bytes(doc):
     buf.seek(0)
     return buf.getvalue()
 
-ENDERECO_ESCRITORIO = ("Qd. 106 Norte, Al. 02, Conj. L, Lote 04/05, "
-                       "Ed. Palmas Business Center, Sala 905, Palmas – TO")
+ENDERECO_ESCRITORIO = ("Ed. JK Business, Av. Juscelino Kubitscheck, Lote 41-A, "
+                       "Sala 901, Palmas – TO, CEP: 77.015-012")
 
 def _texto_outorgados(advogados: list) -> list:
     """Retorna lista com UMA string consolidada dos outorgados.
