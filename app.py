@@ -1326,35 +1326,17 @@ def tab_clientes_ui(dados, advogados_todos):
                             rg=rg_doc, endereco=end_doc)
                     st.session_state.cli_docs = nd
 
-        # Downloads
+        # Editor web + PDF
         docs = st.session_state.cli_docs
         if docs:
-            nl = docs.get("nome_limpo","cliente")
-            st.success("✅ Documentos prontos para download:")
-            if "proc" in docs:
-                st.download_button("⬇️ Baixar Procuração (.docx)", data=docs["proc"],
-                                    file_name="Procuracao_"+nl+".docx",
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    key="dl_cli_proc")
-            if "cont" in docs:
-                st.download_button("⬇️ Baixar Contrato de Honorários (.docx)", data=docs["cont"],
-                                    file_name="Contrato_"+nl+".docx",
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    key="dl_cli_cont")
-            if "decl" in docs:
-                st.download_button("⬇️ Baixar Declaração de Hiposuficiência (.docx)", data=docs["decl"],
-                                    file_name="Declaracao_"+nl+".docx",
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    key="dl_cli_decl")
-            # ── Editor web + PDF ──
-            with st.expander("✏️ Editar e exportar como PDF"):
-                doc_tabs = [k for k in ("proc","cont","decl") if k in docs]
-                nomes_tab = {"proc":"📄 Procuração","cont":"📋 Contrato","decl":"📝 Declaração"}
-                if doc_tabs:
-                    abas = st.tabs([nomes_tab[k] for k in doc_tabs])
-                    for aba, k in zip(abas, doc_tabs):
-                        with aba:
-                            render_editor_pdf(nomes_tab[k], docs[k], "cli_"+k)
+            st.success("✅ Documentos prontos!")
+            doc_tabs = [k for k in ("proc","cont","decl") if k in docs]
+            nomes_tab = {"proc":"📄 Procuração","cont":"📋 Contrato","decl":"📝 Declaração"}
+            if doc_tabs:
+                abas = st.tabs([nomes_tab[k] for k in doc_tabs])
+                for aba, k in zip(abas, doc_tabs):
+                    with aba:
+                        render_editor_pdf(nomes_tab[k], docs[k], "cli_"+k)
 
 # ────────────────────────────────────────────
 # APP PRINCIPAL
@@ -1557,41 +1539,14 @@ def app_principal():
         # ── Downloads persistentes ──
         docs = st.session_state.docs
         if docs:
-            st.success("✅ Documentos prontos para download:")
-            nome_limpo = docs.get("nome_limpo","cliente")
-            if "proc" in docs:
-                st.download_button(
-                    label="⬇️ Baixar Procuração (.docx)",
-                    data=docs["proc"],
-                    file_name="Procuracao_"+nome_limpo+".docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key="dl_proc"
-                )
-            if "cont" in docs:
-                st.download_button(
-                    label="⬇️ Baixar Contrato de Honorários (.docx)",
-                    data=docs["cont"],
-                    file_name="Contrato_"+nome_limpo+".docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key="dl_cont"
-                )
-            if "decl" in docs:
-                st.download_button(
-                    label="⬇️ Baixar Declaração de Hiposuficiência (.docx)",
-                    data=docs["decl"],
-                    file_name="Declaracao_Hiposuficiencia_"+nome_limpo+".docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key="dl_decl"
-                )
-            # ── Editor web + PDF ──
-            with st.expander("✏️ Editar e exportar como PDF"):
-                doc_tabs_av = [k for k in ("proc","cont","decl") if k in docs]
-                nomes_tab_av = {"proc":"📄 Procuração","cont":"📋 Contrato","decl":"📝 Declaração"}
-                if doc_tabs_av:
-                    abas_av = st.tabs([nomes_tab_av[k] for k in doc_tabs_av])
-                    for aba, k in zip(abas_av, doc_tabs_av):
-                        with aba:
-                            render_editor_pdf(nomes_tab_av[k], docs[k], "av_"+k)
+            st.success("✅ Documentos prontos!")
+            doc_tabs_av = [k for k in ("proc","cont","decl") if k in docs]
+            nomes_tab_av = {"proc":"📄 Procuração","cont":"📋 Contrato","decl":"📝 Declaração"}
+            if doc_tabs_av:
+                abas_av = st.tabs([nomes_tab_av[k] for k in doc_tabs_av])
+                for aba, k in zip(abas_av, doc_tabs_av):
+                    with aba:
+                        render_editor_pdf(nomes_tab_av[k], docs[k], "av_"+k)
 
     if tab_adm is not None:
         with tab_adm:
