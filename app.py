@@ -1525,10 +1525,11 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
-    /* Centraliza e limita largura — barra de rolagem fica no navegador */
+    /* Usa a tela toda — padding lateral mínimo */
     .block-container {
-        max-width: 820px !important;
-        margin: 0 auto !important;
+        max-width: 100% !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
         padding-top: 1rem !important;
     }
     h1, h2, h3 { color: #1a3a5c; }
