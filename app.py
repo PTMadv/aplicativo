@@ -11,6 +11,12 @@ try:
 except ImportError:
     _MAMMOTH_OK = False
 
+try:
+    from xhtml2pdf import pisa as _pisa
+    _PISA_OK = True
+except ImportError:
+    _PISA_OK = False
+
 MESES = {1:"janeiro",2:"fevereiro",3:"março",4:"abril",5:"maio",6:"junho",
          7:"julho",8:"agosto",9:"setembro",10:"outubro",11:"novembro",12:"dezembro"}
 
@@ -732,79 +738,58 @@ def _docx_para_html(docx_bytes: bytes) -> str:
     except Exception as e:
         return f"<p><em>Erro ao gerar prévia: {e}</em></p>"
 
-def render_editor_pdf(titulo: str, docx_bytes: bytes, uid: str):
-    """Mostra o documento em um div editável com botão Imprimir/PDF."""
-    html_doc = _docx_para_html(docx_bytes)
-    # Escapa backticks para não quebrar o template JS
-    html_doc_js = html_doc.replace("`", "\\`")
-    component = f"""
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8">
+def _html_para_pdf(html_body: str) -> bytes | None:
+    """Converte HTML em PDF usando xhtml2pdf. Retorna None se indisponível."""
+    if not _PISA_OK:
+        return None
+    full = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
 <style>
-  body {{ margin:0; padding:0; font-family: sans-serif; background:#f5f5f5; }}
-  #toolbar {{
-    position: sticky; top: 0; z-index: 10;
-    background: #1B4332; padding: 8px 12px;
-    display: flex; gap: 8px; align-items: center;
-  }}
-  #toolbar button {{
-    background: #fff; color: #1B4332; border: none;
-    padding: 6px 14px; border-radius: 4px; cursor: pointer;
-    font-size: 13px; font-weight: bold;
-  }}
-  #toolbar button:hover {{ background: #e0f2e9; }}
-  #toolbar span {{ color: #fff; font-size: 13px; opacity: .8; }}
+  @page {{ margin: 2.5cm 3cm; }}
+  body {{ font-family: Times New Roman; font-size: 12pt; line-height: 1.6; }}
+  p {{ text-align: justify; margin: 0 0 10pt 0; }}
+  b, strong {{ font-weight: bold; }}
+  h1, h2, h3 {{ text-align: center; }}
+</style>
+</head><body>{html_body}</body></html>"""
+    buf = io.BytesIO()
+    try:
+        _pisa.CreatePDF(full, dest=buf, encoding="utf-8")
+        return buf.getvalue()
+    except Exception:
+        return None
+
+def render_editor_pdf(titulo: str, docx_bytes: bytes, uid: str):
+    """Mostra prévia do documento e botão para baixar PDF."""
+    html_doc = _docx_para_html(docx_bytes)
+    pdf_bytes = _html_para_pdf(html_doc)
+    if pdf_bytes:
+        st.download_button(
+            label="⬇️ Baixar PDF",
+            data=pdf_bytes,
+            file_name=titulo.replace("📄","").replace("📋","").replace("📝","").strip() + ".pdf",
+            mime="application/pdf",
+            key="pdf_dl_" + uid,
+        )
+    else:
+        st.warning("Geração de PDF indisponível — instale xhtml2pdf.")
+    # Prévia editável
+    component = f"""
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<style>
+  body {{ margin:0; padding:8px; background:#f5f5f5; }}
   #documento {{
-    background: white;
-    margin: 16px auto;
-    width: 210mm;
-    min-height: 297mm;
-    padding: 2.5cm 3cm;
-    box-shadow: 0 2px 8px rgba(0,0,0,.15);
-    font-family: 'Times New Roman', serif;
-    font-size: 12pt;
-    line-height: 1.6;
-    outline: none;
+    background: white; margin: 0 auto; width: 210mm; min-height: 200px;
+    padding: 2.5cm 3cm; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.6; outline: none;
   }}
   #documento p {{ margin: 0 0 10pt 0; text-align: justify; }}
   #documento b, #documento strong {{ font-weight: bold; }}
-  @media (max-width: 700px) {{
-    #documento {{ width: 95%; padding: 1cm; }}
-  }}
-</style>
-</head>
-<body>
-<div id="toolbar">
-  <button onclick="imprimirDoc()">🖨️ Imprimir / Exportar PDF</button>
-  <span>Edite o texto diretamente antes de imprimir</span>
-</div>
+  @media (max-width: 700px) {{ #documento {{ width: 95%; padding: 1cm; }} }}
+</style></head><body>
 <div id="documento" contenteditable="true">{html_doc}</div>
-<script>
-function imprimirDoc() {{
-  const conteudo = document.getElementById('documento').innerHTML;
-  const pw = window.open('', '_blank', 'width=900,height=700');
-  if (!pw) {{ alert('Permita pop-ups para este site e tente novamente.'); return; }}
-  pw.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="utf-8"><title>{titulo}</title>
-    <style>
-      body {{ font-family:'Times New Roman',serif; font-size:12pt;
-              margin:2.5cm 3cm; line-height:1.6; }}
-      p {{ margin:0 0 10pt 0; text-align:justify; }}
-      b,strong {{ font-weight:bold; }}
-      @page {{ margin:2.5cm 3cm; }}
-    </style>
-  </head><body>` + conteudo + `</body></html>`);
-  pw.document.close();
-  pw.focus();
-  setTimeout(function(){{ pw.print(); }}, 400);
-}}
-</script>
-</body>
-</html>
-"""
-    st.components.v1.html(component, height=650, scrolling=True)
+</body></html>"""
+    st.components.v1.html(component, height=600, scrolling=True)
 
 # ────────────────────────────────────────────
 # PAINEL ADMIN
