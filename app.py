@@ -776,17 +776,16 @@ def _html_para_pdf(html_body: str) -> bytes | None:
 <style>
   @page {{
     margin-top: 3.5cm;
-    margin-bottom: 2.8cm;
+    margin-bottom: 3cm;
     margin-left: 3cm;
     margin-right: 3cm;
     @frame header_frame {{
       -pdf-frame-content: hdr_content;
-      top: 0.3cm; left: 0; right: 0; height: 3cm;
+      top: 0.2cm; left: 0cm; right: 0cm; height: 3cm;
     }}
     @frame footer_frame {{
       -pdf-frame-content: ftr_content;
-      -pdf-frame-side: bottom;
-      bottom: 0.3cm; left: 0; right: 0; height: 2.2cm;
+      bottom: 0.2cm; left: 0cm; right: 0cm; height: 2.5cm;
     }}
   }}
   body  {{ font-family: "Times New Roman"; font-size: 12pt; line-height: 1.6; }}
@@ -796,7 +795,7 @@ def _html_para_pdf(html_body: str) -> bytes | None:
   .corpo      {{ text-align: justify; }}
 </style>
 </head><body>
-<div id="hdr_content"><img src="{hdr_uri}" style="width:100%;"/></div>
+<div id="hdr_content" style="text-align:center;"><img src="{hdr_uri}" style="width:100%;display:block;margin:0 auto;"/></div>
 <div id="ftr_content"><img src="{ftr_uri}" style="width:100%;"/></div>
 {html_body}
 </body></html>"""
