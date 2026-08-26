@@ -273,6 +273,13 @@ def numero_por_extenso(valor_str: str) -> str:
     texto = " e ".join(partes)
     return texto + " reais"
 
+def _fmt_honorario_fixo(key: str):
+    raw = re.sub(r"[^\d]", "", st.session_state.get(key, "").split(",")[0])
+    if raw:
+        n = int(raw)
+        fmt = "R$ {:,.2f}".format(n).replace(",","X").replace(".",",").replace("X",".")
+        st.session_state[key] = fmt
+
 def _fmt_cpf():
     raw = re.sub(r"\D","",st.session_state.get("cpf_input",""))[:11]
     if len(raw)<=3: fmt=raw
@@ -1134,16 +1141,14 @@ def tab_clientes_ui(dados, advogados_todos):
             tipo_honorario = st.radio("Tipo", ["Percentual sobre o êxito", "Valor fixo"],
                                        horizontal=True, key="dp_thon")
             if tipo_honorario == "Percentual sobre o êxito":
-                col_h1, col_h2 = st.columns(2)
-                with col_h1: valor_honorario  = st.text_input("Percentual (%)", placeholder="30", key="dp_vh")
-                with col_h2: extenso_honorario = st.text_input("Por extenso", placeholder="trinta", key="dp_ext")
+                valor_honorario = st.text_input("Percentual (%)", placeholder="30", key="dp_vh")
                 tipo_hon_key = "percentual"
+                extenso_honorario = valor_honorario.strip() + " por cento" if valor_honorario.strip() else ""
             else:
-                col_h1, col_h2 = st.columns(2)
-                with col_h1: valor_honorario = st.text_input("Valor (R$)", placeholder="50.000,00", key="dp_vh")
-                with col_h2:
-                    auto_ext = numero_por_extenso(valor_honorario) if valor_honorario.strip() else ""
-                    extenso_honorario = st.text_input("Por extenso", value=auto_ext, key="dp_ext")
+                valor_honorario = st.text_input(
+                    "Valor (R$)", placeholder="100.000,00", key="dp_vh",
+                    on_change=_fmt_honorario_fixo, args=("dp_vh",))
+                extenso_honorario = numero_por_extenso(valor_honorario) if valor_honorario.strip() else ""
                 tipo_hon_key = "fixo"
         else:
             valor_honorario = ""; extenso_honorario = ""; tipo_hon_key = "percentual"
@@ -1175,7 +1180,6 @@ def tab_clientes_ui(dados, advogados_todos):
                 erros.append("Selecione ao menos um advogado.")
             if gerar_cont:
                 if not valor_honorario.strip(): erros.append("Informe o valor dos honorários.")
-                if not extenso_honorario.strip(): erros.append("Informe o valor por extenso.")
             if erros:
                 for e in erros: st.error(e)
             else:
@@ -1357,21 +1361,14 @@ def app_principal():
                 key="tipo_hon"
             )
             if tipo_honorario == "Percentual sobre o êxito":
-                col_h1, col_h2 = st.columns(2)
-                with col_h1:
-                    valor_honorario = st.text_input("Percentual (%)", placeholder="30")
-                with col_h2:
-                    extenso_honorario = st.text_input("Por extenso", placeholder="trinta")
+                valor_honorario = st.text_input("Percentual (%)", placeholder="30", key="av_vh")
                 tipo_hon_key = "percentual"
+                extenso_honorario = valor_honorario.strip() + " por cento" if valor_honorario.strip() else ""
             else:
-                col_h1, col_h2 = st.columns(2)
-                with col_h1:
-                    valor_honorario = st.text_input("Valor (R$)", placeholder="50.000,00",
-                                                     help="Digite o valor e o extenso será gerado automaticamente")
-                with col_h2:
-                    auto_extenso = numero_por_extenso(valor_honorario) if valor_honorario.strip() else ""
-                    extenso_honorario = st.text_input("Por extenso", value=auto_extenso,
-                                                       placeholder="cinquenta mil reais")
+                valor_honorario = st.text_input(
+                    "Valor (R$)", placeholder="100.000,00", key="av_vh",
+                    on_change=_fmt_honorario_fixo, args=("av_vh",))
+                extenso_honorario = numero_por_extenso(valor_honorario) if valor_honorario.strip() else ""
                 tipo_hon_key = "fixo"
         else:
             valor_honorario = ""; extenso_honorario = ""; tipo_hon_key = "percentual"
@@ -1392,7 +1389,6 @@ def app_principal():
                 erros.append("Selecione ao menos um advogado outorgado.")
             if gerar_cont:
                 if not valor_honorario.strip(): erros.append("Informe o valor dos honorários.")
-                if not extenso_honorario.strip(): erros.append("Informe o valor por extenso.")
 
             if erros:
                 for e in erros:
@@ -1499,20 +1495,17 @@ def app_principal():
 st.set_page_config(
     page_title="PTM Advocacia – Gerador de Documentos",
     page_icon="⚖️",
-    layout="centered"
+    layout="wide"
 )
 st.markdown("""
 <style>
-    .stApp { max-width: 820px; margin: auto; }
+    /* Centraliza e limita largura — barra de rolagem fica no navegador */
+    .block-container {
+        max-width: 820px !important;
+        margin: 0 auto !important;
+        padding-top: 1rem !important;
+    }
     h1, h2, h3 { color: #1a3a5c; }
-    /* Remove barra interna — usa a do navegador */
-    section[data-testid="stMain"] > div:first-child {
-        overflow: visible !important;
-        height: auto !important;
-    }
-    section[data-testid="stMain"] {
-        overflow-y: visible !important;
-    }
     .stButton>button {
         background-color: #1a3a5c; color: white; border-radius: 6px;
         padding: 0.5rem 1rem; font-size: 0.95rem; width: 100%;
@@ -1525,7 +1518,7 @@ st.markdown("""
     }
     .stDownloadButton>button:hover { background-color: #1b5e20; }
     @media (max-width: 640px) {
-        .stApp { padding: 0.5rem !important; }
+        .block-container { padding: 0.5rem !important; }
         .stButton>button { padding: 0.6rem 0.8rem; font-size: 0.9rem; }
         div[data-testid="column"] { min-width: 100% !important; }
     }
