@@ -103,15 +103,20 @@ def carregar_dados() -> dict:
             dados["advogados"] = json.loads(env_adv)
     except Exception:
         pass
-    salvar_dados(dados)
+    # Garante que a chave "clientes" existe
+    dados.setdefault("clientes", [])
     return dados
 
 def salvar_dados(dados: dict):
     try:
-        with open(_DADOS_PATH, "w", encoding="utf-8") as f:
+        # Escreve primeiro em arquivo temporário para evitar corrupção
+        tmp = _DADOS_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+        os.replace(tmp, _DADOS_PATH)
+    except Exception as e:
+        st.error(f"⚠️ Erro ao salvar dados: {e}\nCaminho: {_DADOS_PATH}")
+        raise
 
 
 def _css():
@@ -686,11 +691,10 @@ def gerar_declaracao(nome, nacionalidade, estado_civil, cpf, rg, endereco):
 # ────────────────────────────────────────────
 # PAINEL ADMIN
 # ────────────────────────────────────────────
-def painel_admin():
+def painel_admin(dados):
     st.subheader("⚙️ Painel do Administrador")
-    dados = carregar_dados()
 
-    tab_u, tab_a = st.tabs(["👥 Usuários", "⚖️ Advogados"])
+    tab_u, tab_a, tab_diag = st.tabs(["👥 Usuários", "⚖️ Advogados", "🔧 Diagnóstico"])
 
     # ── Tab usuários ──
     with tab_u:
@@ -786,6 +790,49 @@ def painel_admin():
                 st.rerun()
             else:
                 st.error("Preencha nome e OAB.")
+
+    # ── Tab diagnóstico ──
+    with tab_diag:
+        st.markdown("### 🔧 Diagnóstico de Armazenamento")
+        import datetime as _dt
+
+        # Caminho ativo
+        st.markdown(f"**Caminho do arquivo:** `{_DADOS_PATH}`")
+
+        # Checa /data
+        data_dir_existe = os.path.isdir("/data")
+        st.markdown(f"**Diretório /data existe:** {'✅ Sim' if data_dir_existe else '❌ Não (usando /tmp)'}")
+
+        # Checa se o arquivo existe
+        arquivo_existe = os.path.exists(_DADOS_PATH)
+        st.markdown(f"**Arquivo de dados existe:** {'✅ Sim' if arquivo_existe else '❌ Não (será criado no próximo save)'}")
+
+        if arquivo_existe:
+            stat = os.stat(_DADOS_PATH)
+            st.markdown(f"**Tamanho do arquivo:** {stat.st_size} bytes")
+            modificado = _dt.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M:%S")
+            st.markdown(f"**Última modificação:** {modificado}")
+
+        # Teste de escrita
+        st.markdown("---")
+        if st.button("🔬 Testar escrita agora"):
+            teste_path = ("/data/_teste_escrita.txt" if data_dir_existe else "/tmp/_teste_escrita.txt")
+            try:
+                with open(teste_path, "w") as f:
+                    f.write("ok")
+                os.remove(teste_path)
+                st.success(f"✅ Escrita em `{teste_path}` funcionou!")
+            except Exception as ex:
+                st.error(f"❌ Falha ao escrever em `{teste_path}`: {ex}")
+
+        # Forçar re-save dos dados atuais
+        st.markdown("---")
+        if st.button("💾 Forçar gravação dos dados agora"):
+            try:
+                salvar_dados(dados)
+                st.success(f"✅ Dados gravados em `{_DADOS_PATH}`  ({len(dados.get('clientes',[]))} clientes, {len(dados.get('usuarios',{}))} usuários, {len(dados.get('advogados',[]))} advogados)")
+            except Exception as ex:
+                st.error(f"❌ Erro ao salvar: {ex}")
 
 # ────────────────────────────────────────────
 # BANCO DE CLIENTES – CRUD
@@ -982,10 +1029,13 @@ def tab_clientes_ui(dados, advogados_todos):
                     c["tipo"] = tipo
                     if is_novo:
                         c["id"] = str(uuid.uuid4())[:8]
-                    salvar_cliente(dados, c)
-                    st.success("Cliente salvo com sucesso!")
-                    st.session_state.cli_view = "lista"
-                    st.rerun()
+                    try:
+                        salvar_cliente(dados, c)
+                        st.success(f"✅ Cliente salvo com sucesso! (arquivo: {_DADOS_PATH})")
+                        st.session_state.cli_view = "lista"
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"❌ Falha ao salvar: {ex}")
         with btn2:
             if not is_novo:
                 if st.button("📄 Gerar Documentos", use_container_width=True):
@@ -1069,8 +1119,10 @@ def tab_clientes_ui(dados, advogados_todos):
         if gerar_proc or gerar_cont:
             st.divider()
             st.subheader("Objeto da Ação")
-            objeto_acao = st.text_area("Descreva a ação / serviço contratado *",
+            _obj_label = "Descreva a ação / serviço contratado *" if gerar_cont else "Descreva a ação / serviço contratado (opcional para procuração)"
+            objeto_acao = st.text_area(_obj_label,
                                         placeholder="Ex: ação trabalhista em face de Empresa X Ltda.",
+                                        help="Obrigatório para o Contrato. Na procuração, se deixado em branco, serão outorgados apenas poderes gerais (sem objeto específico).",
                                         key="dp_objeto")
         else:
             objeto_acao = ""
@@ -1117,8 +1169,8 @@ def tab_clientes_ui(dados, advogados_todos):
             erros = []
             if not (gerar_proc or gerar_cont or gerar_decl):
                 erros.append("Selecione ao menos um documento.")
-            if (gerar_proc or gerar_cont) and not objeto_acao.strip():
-                erros.append("Informe o objeto da ação.")
+            if gerar_cont and not objeto_acao.strip():
+                erros.append("Informe o objeto da ação (obrigatório para o Contrato de Honorários).")
             if (gerar_proc or gerar_cont) and not advogados_sel:
                 erros.append("Selecione ao menos um advogado.")
             if gerar_cont:
@@ -1285,10 +1337,11 @@ def app_principal():
         if gerar_proc or gerar_cont:
             st.divider()
             st.subheader("Objeto da Ação")
+            _obj_label2 = "Descreva a ação / serviço contratado *" if gerar_cont else "Descreva a ação / serviço contratado (opcional para procuração)"
             objeto_acao = st.text_area(
-                "Descreva a ação / serviço contratado *",
+                _obj_label2,
                 placeholder="Ex: ação trabalhista em face de Empresa X Ltda.",
-                help="Aparece na Procuração (cláusula de poderes) e no Contrato (Cláusula Primeira)."
+                help="Obrigatório para o Contrato. Na procuração, se deixado em branco, serão outorgados apenas poderes gerais (sem objeto específico)."
             )
         else:
             objeto_acao = ""
@@ -1333,8 +1386,8 @@ def app_principal():
             if not endereco.strip(): erros.append("Informe o endereço.")
             if not (gerar_proc or gerar_cont or gerar_decl):
                 erros.append("Selecione ao menos um documento para gerar.")
-            if (gerar_proc or gerar_cont) and not objeto_acao.strip():
-                erros.append("Informe o objeto da ação.")
+            if gerar_cont and not objeto_acao.strip():
+                erros.append("Informe o objeto da ação (obrigatório para o Contrato de Honorários).")
             if (gerar_proc or gerar_cont) and not advogados_sel:
                 erros.append("Selecione ao menos um advogado outorgado.")
             if gerar_cont:
@@ -1410,7 +1463,7 @@ def app_principal():
 
     if tab_adm is not None:
         with tab_adm:
-            painel_admin()
+            painel_admin(dados)
 
     with tab_conta:
         st.subheader("👤 Minha Conta")
