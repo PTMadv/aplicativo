@@ -87,9 +87,13 @@ def carregar_dados() -> dict:
     except Exception:
         pass
     # Suporte a variáveis simples: PTM_USER_<LOGIN>_SENHA e PTM_USER_<LOGIN>_NOME
+    # Só cria usuário do env se ainda NÃO existe no JSON salvo e NÃO foi excluído pelo admin
+    _env_deleted = set(dados.get("_env_users_deleted", []))
     for key, val in os.environ.items():
         if key.startswith("PTM_USER_") and key.endswith("_SENHA") and val:
             login = key[len("PTM_USER_"):-len("_SENHA")].lower()
+            if login in _env_deleted or login in dados["usuarios"]:
+                continue  # respeita edições/exclusões feitas pelo admin
             nome = os.environ.get(f"PTM_USER_{login.upper()}_NOME", login)
             admin = os.environ.get(f"PTM_USER_{login.upper()}_ADMIN", "false").lower() == "true"
             dados["usuarios"][login] = {
@@ -728,6 +732,12 @@ def painel_admin(dados):
                     if uname != st.session_state.usuario:
                         if st.button("🗑️ Excluir", key="del_"+uname):
                             del dados["usuarios"][uname]
+                            # Se o usuário veio de env var, marca para não ser recriado
+                            if os.environ.get(f"PTM_USER_{uname.upper()}_SENHA"):
+                                _del_list = dados.get("_env_users_deleted", [])
+                                if uname not in _del_list:
+                                    _del_list.append(uname)
+                                dados["_env_users_deleted"] = _del_list
                             salvar_dados(dados)
                             st.success("Excluído.")
                             st.rerun()
