@@ -738,20 +738,68 @@ def _docx_para_html(docx_bytes: bytes) -> str:
     except Exception as e:
         return f"<p><em>Erro ao gerar prévia: {e}</em></p>"
 
+def _b64_data_uri(b64: str) -> str:
+    """Detecta o tipo do base64 e retorna data URI."""
+    if b64.startswith("iVBOR"):
+        mime = "image/png"
+    elif b64.startswith("R0lGOD"):
+        mime = "image/gif"
+    else:
+        mime = "image/jpeg"
+    return f"data:{mime};base64,{b64}"
+
 def _html_para_pdf(html_body: str) -> bytes | None:
-    """Converte HTML em PDF usando xhtml2pdf. Retorna None se indisponível."""
+    """Converte HTML em PDF usando xhtml2pdf com cabeçalho/rodapé do escritório."""
     if not _PISA_OK:
         return None
+    import re as _re
+
+    # ── Pós-processa alinhamentos perdidos pelo mammoth ──
+    # 1. Centraliza títulos principais
+    for titulo_doc in [
+        "PROCURAÇÃO",
+        "CONTRATO DE HONORÁRIOS ADVOCATÍCIOS",
+        "DECLARAÇÃO DE HIPOSSUFICIÊNCIA ECONÔMICA",
+    ]:
+        html_body = html_body.replace(
+            f"<p><strong>{titulo_doc}</strong></p>",
+            f'<p class="titulo-doc"><strong>{titulo_doc}</strong></p>',
+        )
+    # 2. Adiciona justify a parágrafos sem estilo inline
+    html_body = _re.sub(r"<p>(?=[^<])", '<p class="corpo">', html_body)
+
+    hdr_uri = _b64_data_uri(HEADER_B64)
+    ftr_uri = _b64_data_uri(FOOTER_B64)
+
     full = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
-  @page {{ margin: 2.5cm 3cm; }}
-  body {{ font-family: Times New Roman; font-size: 12pt; line-height: 1.6; }}
-  p {{ text-align: justify; margin: 0 0 10pt 0; }}
+  @page {{
+    margin-top: 3.5cm;
+    margin-bottom: 2.8cm;
+    margin-left: 3cm;
+    margin-right: 3cm;
+    @frame header_frame {{
+      -pdf-frame-content: hdr_content;
+      top: 0.3cm; left: 0; right: 0; height: 3cm;
+    }}
+    @frame footer_frame {{
+      -pdf-frame-content: ftr_content;
+      -pdf-frame-side: bottom;
+      bottom: 0.3cm; left: 0; right: 0; height: 2.2cm;
+    }}
+  }}
+  body  {{ font-family: "Times New Roman"; font-size: 12pt; line-height: 1.6; }}
+  p     {{ margin: 0 0 10pt 0; }}
   b, strong {{ font-weight: bold; }}
-  h1, h2, h3 {{ text-align: center; }}
+  .titulo-doc {{ text-align: center; font-size: 14pt; margin-bottom: 14pt; }}
+  .corpo      {{ text-align: justify; }}
 </style>
-</head><body>{html_body}</body></html>"""
+</head><body>
+<div id="hdr_content"><img src="{hdr_uri}" style="width:100%;"/></div>
+<div id="ftr_content"><img src="{ftr_uri}" style="width:100%;"/></div>
+{html_body}
+</body></html>"""
     buf = io.BytesIO()
     try:
         _pisa.CreatePDF(full, dest=buf, encoding="utf-8")
