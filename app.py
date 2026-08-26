@@ -5,6 +5,11 @@ from datetime import date
 from docx import Document
 from docx.shared import Pt, Inches, Emu
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+try:
+    import mammoth as _mammoth
+    _MAMMOTH_OK = True
+except ImportError:
+    _MAMMOTH_OK = False
 
 MESES = {1:"janeiro",2:"fevereiro",3:"março",4:"abril",5:"maio",6:"junho",
          7:"julho",8:"agosto",9:"setembro",10:"outubro",11:"novembro",12:"dezembro"}
@@ -715,6 +720,93 @@ def gerar_declaracao(nome, nacionalidade, estado_civil, cpf, rg, endereco):
     return doc_to_bytes(doc)
 
 # ────────────────────────────────────────────
+# EDITOR WEB + EXPORTAR PDF
+# ────────────────────────────────────────────
+def _docx_para_html(docx_bytes: bytes) -> str:
+    """Converte bytes de um .docx em HTML usando mammoth."""
+    if not _MAMMOTH_OK:
+        return "<p><em>Prévia indisponível (instale mammoth).</em></p>"
+    try:
+        result = _mammoth.convert_to_html(io.BytesIO(docx_bytes))
+        return result.value or "<p>(documento vazio)</p>"
+    except Exception as e:
+        return f"<p><em>Erro ao gerar prévia: {e}</em></p>"
+
+def render_editor_pdf(titulo: str, docx_bytes: bytes, uid: str):
+    """Mostra o documento em um div editável com botão Imprimir/PDF."""
+    html_doc = _docx_para_html(docx_bytes)
+    # Escapa backticks para não quebrar o template JS
+    html_doc_js = html_doc.replace("`", "\\`")
+    component = f"""
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  body {{ margin:0; padding:0; font-family: sans-serif; background:#f5f5f5; }}
+  #toolbar {{
+    position: sticky; top: 0; z-index: 10;
+    background: #1B4332; padding: 8px 12px;
+    display: flex; gap: 8px; align-items: center;
+  }}
+  #toolbar button {{
+    background: #fff; color: #1B4332; border: none;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer;
+    font-size: 13px; font-weight: bold;
+  }}
+  #toolbar button:hover {{ background: #e0f2e9; }}
+  #toolbar span {{ color: #fff; font-size: 13px; opacity: .8; }}
+  #documento {{
+    background: white;
+    margin: 16px auto;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 2.5cm 3cm;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    font-family: 'Times New Roman', serif;
+    font-size: 12pt;
+    line-height: 1.6;
+    outline: none;
+  }}
+  #documento p {{ margin: 0 0 10pt 0; text-align: justify; }}
+  #documento b, #documento strong {{ font-weight: bold; }}
+  @media (max-width: 700px) {{
+    #documento {{ width: 95%; padding: 1cm; }}
+  }}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <button onclick="imprimirDoc()">🖨️ Imprimir / Exportar PDF</button>
+  <span>Edite o texto diretamente antes de imprimir</span>
+</div>
+<div id="documento" contenteditable="true">{html_doc}</div>
+<script>
+function imprimirDoc() {{
+  const conteudo = document.getElementById('documento').innerHTML;
+  const pw = window.open('', '_blank', 'width=900,height=700');
+  if (!pw) {{ alert('Permita pop-ups para este site e tente novamente.'); return; }}
+  pw.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8"><title>{titulo}</title>
+    <style>
+      body {{ font-family:'Times New Roman',serif; font-size:12pt;
+              margin:2.5cm 3cm; line-height:1.6; }}
+      p {{ margin:0 0 10pt 0; text-align:justify; }}
+      b,strong {{ font-weight:bold; }}
+      @page {{ margin:2.5cm 3cm; }}
+    </style>
+  </head><body>` + conteudo + `</body></html>`);
+  pw.document.close();
+  pw.focus();
+  setTimeout(function(){{ pw.print(); }}, 400);
+}}
+</script>
+</body>
+</html>
+"""
+    st.components.v1.html(component, height=650, scrolling=True)
+
+# ────────────────────────────────────────────
 # PAINEL ADMIN
 # ────────────────────────────────────────────
 def painel_admin(dados):
@@ -1254,6 +1346,15 @@ def tab_clientes_ui(dados, advogados_todos):
                                     file_name="Declaracao_"+nl+".docx",
                                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                     key="dl_cli_decl")
+            # ── Editor web + PDF ──
+            with st.expander("✏️ Editar e exportar como PDF"):
+                doc_tabs = [k for k in ("proc","cont","decl") if k in docs]
+                nomes_tab = {"proc":"📄 Procuração","cont":"📋 Contrato","decl":"📝 Declaração"}
+                if doc_tabs:
+                    abas = st.tabs([nomes_tab[k] for k in doc_tabs])
+                    for aba, k in zip(abas, doc_tabs):
+                        with aba:
+                            render_editor_pdf(nomes_tab[k], docs[k], "cli_"+k)
 
 # ────────────────────────────────────────────
 # APP PRINCIPAL
@@ -1482,6 +1583,15 @@ def app_principal():
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     key="dl_decl"
                 )
+            # ── Editor web + PDF ──
+            with st.expander("✏️ Editar e exportar como PDF"):
+                doc_tabs_av = [k for k in ("proc","cont","decl") if k in docs]
+                nomes_tab_av = {"proc":"📄 Procuração","cont":"📋 Contrato","decl":"📝 Declaração"}
+                if doc_tabs_av:
+                    abas_av = st.tabs([nomes_tab_av[k] for k in doc_tabs_av])
+                    for aba, k in zip(abas_av, doc_tabs_av):
+                        with aba:
+                            render_editor_pdf(nomes_tab_av[k], docs[k], "av_"+k)
 
     if tab_adm is not None:
         with tab_adm:
