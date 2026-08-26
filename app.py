@@ -27,6 +27,7 @@ LOGO_PTM_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8L
 _SALT = "PTMadvocacia2024"
 # Usa Railway Volume (/data) se disponível, senão /tmp (efêmero)
 _DADOS_PATH = "/data/ptm_dados.json" if os.path.isdir("/data") else "/tmp/ptm_dados.json"
+_ESTADOS_CIVIS = ["solteiro(a)", "casado(a)", "divorciado(a)", "viúvo(a)", "separado(a)", "em união estável"]
 
 def _hash(senha: str) -> str:
     return hashlib.sha256((_SALT + senha).encode()).hexdigest()
@@ -352,13 +353,27 @@ ENDERECO_ESCRITORIO = ("Qd. 106 Norte, Al. 02, Conj. L, Lote 04/05, "
                        "Ed. Palmas Business Center, Sala 905, Palmas – TO")
 
 def _texto_outorgados(advogados: list) -> list:
-    """Retorna lista de strings descrevendo cada outorgado."""
-    linhas = []
-    for adv in advogados:
-        txt = (adv["nome"] + ", advogado, inscrito na " + adv["oab"] +
-               ", domiciliado profissionalmente na " + ENDERECO_ESCRITORIO + ".")
-        linhas.append(txt)
-    return linhas
+    """Retorna lista com UMA string consolidada dos outorgados.
+    Quando há mais de um, combina nomes e OABs em um único parágrafo."""
+    if not advogados:
+        return []
+    if len(advogados) == 1:
+        adv = advogados[0]
+        return [adv["nome"] + ", advogado, inscrito na " + adv["oab"] +
+                ", domiciliado profissionalmente na " + ENDERECO_ESCRITORIO + "."]
+    # Múltiplos advogados → parágrafo único
+    nomes = " e ".join(a["nome"] for a in advogados)
+    # Tenta combinar OABs com prefixo comum (ex: "OAB/TO 4.589B e 6.074")
+    partes_oab = [a["oab"].split() for a in advogados]
+    prefixos   = [p[0] if p else "" for p in partes_oab]
+    numeros    = [" ".join(p[1:]) if len(p) > 1 else a["oab"]
+                  for p, a in zip(partes_oab, advogados)]
+    if len(set(prefixos)) == 1 and prefixos[0]:
+        oab_str = prefixos[0] + " " + " e ".join(numeros)
+    else:
+        oab_str = " e ".join(a["oab"] for a in advogados)
+    return [nomes + ", inscritos na " + oab_str + ", respectivamente, "
+            "domiciliados profissionalmente na " + ENDERECO_ESCRITORIO + "."]
 
 # ─────────────────────────────────────────────
 # 1. PROCURAÇÃO
@@ -979,8 +994,9 @@ def tab_clientes_ui(dados, advogados_todos):
                 c["rg"]   = st.text_input("RG", value=c.get("rg",""))
                 c["orgao_rg"] = st.text_input("Órgão emissor RG", value=c.get("orgao_rg",""))
             with col2:
-                c["estado_civil"]  = st.text_input("Estado civil", value=c.get("estado_civil",""),
-                                                    placeholder="solteiro(a), casado(a)...")
+                _ec_val = c.get("estado_civil", _ESTADOS_CIVIS[0])
+                _ec_idx = _ESTADOS_CIVIS.index(_ec_val) if _ec_val in _ESTADOS_CIVIS else 0
+                c["estado_civil"] = st.selectbox("Estado civil", options=_ESTADOS_CIVIS, index=_ec_idx)
                 c["profissao"]     = st.text_input("Profissão", value=c.get("profissao",""))
                 c["nacionalidade"] = st.text_input("Nacionalidade", value=c.get("nacionalidade","brasileiro(a)"))
                 c["naturalidade"]  = st.text_input("Naturalidade", value=c.get("naturalidade",""),
@@ -1309,7 +1325,7 @@ def app_principal():
             with col5:
                 nacionalidade = st.text_input("Nacionalidade", value="brasileiro(a)")
             with col6:
-                estado_civil = st.text_input("Estado civil", placeholder="solteiro(a), casado(a)...")
+                estado_civil = st.selectbox("Estado civil", options=_ESTADOS_CIVIS)
 
         endereco_label = "Endereço / Sede *" if tipo_key == "pj" else "Endereço completo *"
         endereco = st.text_input(endereco_label, placeholder="Rua, número, bairro, cidade – UF, CEP")
